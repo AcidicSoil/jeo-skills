@@ -15,6 +15,11 @@ fi
 
 case "$1" in
   categories|list|search|related|doctor|-h|--help) ;;
+  systemone)
+    shift
+    cd "$repo"
+    exec node "$repo/scripts/jeo-systemone.mjs" "$@"
+    ;;
   install)
     for arg in "$@"; do
       case "$arg" in

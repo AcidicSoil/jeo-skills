@@ -187,6 +187,7 @@ With `--profile <id>`, the harness reads only that profile's base file and selec
 | `JEV_SYSTEMONE_ENDPOINT` / `JEV_SYSTEMONE_DRIVER` / `JEV_SYSTEMONE_MODEL` | System One endpoint, driver (`typesafe`, `decide`, or `vllm-jev-decision`), and served model. |
 | `JEV_SYSTEMONE_API_KEY` / `JEV_SYSTEMONE_HEAD_JSON` / `JEV_SYSTEMONE_CALIBRATION_JSON` | Optional System One key and driver metadata paths. |
 | `JEV_SYSTEMONE_CHOICE_CAP` / `JEV_SYSTEMONE_VALIDATED_MODEL` | Choice cap and model attestation for `systemone`. |
+| `JEV_SYSTEMONE_TIMEOUT_MS` / `JEV_SYSTEMONE_MAX_STATE_CHARS` | Optional bounded request timeout (1,000–300,000 ms) and input-state budget (1,024–100,000 chars). The isolated Jeo-to-Droid bridge uses conservative values for smaller local GGUFs. |
 | `JEV_<KIND>_VALIDATED_MODEL` | Exact served-model attestation; honored only for `api` and `systemone`, ignored (`eligible: false`) for `local`/`ollama`/`lmstudio`. |
 | `JEV_LOCAL_ENDPOINT` / `JEV_OLLAMA_ENDPOINT` / `JEV_LMSTUDIO_ENDPOINT` | Profile-specific local backend URLs. |
 | `JEV_LOCAL_MODEL` / `JEV_LOCAL_MODEL_DIR` | Generative model ID or full-precision model directory for local adapters. |

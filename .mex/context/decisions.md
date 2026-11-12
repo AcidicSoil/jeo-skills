@@ -35,13 +35,21 @@ last_updated: 2026-11-12
 
 ## Decision Log
 
+### Reuse System One models without joining skill catalogs
+**Date:** 2026-11-12
+**Status:** Accepted
+**Decision:** The isolated `scripts/jeo-local.sh systemone` command reads the existing `jev-droid` registry, starts/reuses an explicitly selected loopback model, runs Jeo's decision harness against this checkout's own catalog, and stops only the runtime it started.
+**Reasoning:** The models and inference lifecycle belong to Droid; Jeo owns skill taxonomy and selection. Keeping those boundaries avoids drift and prevents global skill-library changes.
+**Alternatives considered:** Copying model paths into Jeo (rejected: drift), enabling globally installed Jev profiles/hooks (rejected: violates isolated evaluation), and running Droid's skill router for Jeo (rejected: selects the wrong catalog).
+**Consequences:** Requires a working `jev-droid` executable, and a cold model can delay one command. The existing startup timeout and System One input budgets remain bounded; decisions are advisory until independently calibrated.
+
 ### Isolated fork-local catalog evaluation
 **Date:** 2026-11-12
 **Status:** Accepted
 **Decision:** Use `scripts/jeo-local.sh` for catalog discovery and selected installs within `~/tools/jeo-skills/.jeo-local/.agents/skills`; do not integrate the fork with existing global skill roots, host hooks, or background refresh.
 **Reasoning:** Evaluate the fork without mixing it into the independently maintained skill library.
 **Alternatives considered:** General upstream `install.sh` (rejected: shared/global default), per-host installs (rejected: side effects and potential symlink conflicts).
-**Consequences:** Explicitly revisit runtime integration later; the local launcher blocks global, host-specific and setup/hook commands.
+**Consequences:** Fork-local runtime reuse is defined above; global host integration remains a separate decision. The local launcher still blocks global, host-specific and setup/hook commands.
 
 ### Shared-root-only refresh + per-host symlinks (no per-host copy installs)
 **Date:** 2026-11-06

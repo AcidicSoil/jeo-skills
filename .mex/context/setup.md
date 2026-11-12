@@ -20,6 +20,7 @@ last_updated: 2026-11-12
 - Python 3.9+ for the catalog router.
 - Node.js 22.20+ and `npx` for selected skill installation.
 - Bash for `scripts/jeo-local.sh`.
+- Optional: the fork-owned `jev-droid` CLI installed on PATH, with configured local System One models. This dependency is only needed for `systemone` commands.
 
 ## Fork-local workflow
 
@@ -33,6 +34,8 @@ cd ~/tools/jeo-skills
 ./scripts/jeo-local.sh install jeo-skill --dry-run
 ./scripts/jeo-local.sh install jeo-skill --yes
 ./scripts/test-jeo-local.sh
+./scripts/jeo-local.sh systemone models
+./scripts/jeo-local.sh systemone route julia "Review architecture"
 ```
 
 - Source catalog: `.agent-skills/skills.json` and `.agent-skills/<name>/SKILL.md`.
@@ -41,6 +44,8 @@ cd ~/tools/jeo-skills
 - It rejects global installation, explicit host targeting, setup/hooks, linking, and lifecycle cleanup.
 - Do **not** use root `install.sh`, `scripts/skills-upgrade.sh`, or `jeo-skill link` for this sandbox; those workflows may write host/global paths.
 - Only selected skills get copied locally. No runtime outside this checkout is configured to load them.
+- `systemone route` uses the existing `jev-droid` model registry and runtime, with a checkout-isolated Jev environment and Jeo's catalog; it never enables global hooks or Jev profiles.
+- For slow managed models, the shared Droid configuration uses a 300-second idle window; a server started by the isolated wrapper is stopped immediately after the command.
 
 ## Verification
 

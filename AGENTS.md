@@ -16,6 +16,7 @@ A curated, cross-platform catalog of categorized AI agent skills (current count:
 - Never hand-edit `.agent-skills/skills.toon` or the README category tables to "fix" a validation failure — they are projections of `skills.json`; fix the manifest instead
 - Never commit a new repository-root file or directory without adding its own `!/name` line to the root allowlist in `.gitignore` — everything at the root is ignored by default so local notes, agent state, and scratch files never reach GitHub; prefer putting new work under `.agent-skills/` or an existing allowlisted directory
 - For this isolated fork checkout, use `scripts/jeo-local.sh`; it pins the local catalog and checkout-scoped `.jeo-local/.agents/skills` installation. Do not run `install.sh`, `jeo-skill link`, global/shared-root refresh, or hook/setup wiring without separate approval. No existing `~/.agents/skills` entries may be modified.
+- For local System One model reuse, use `scripts/jeo-local.sh systemone models|route`. It reads the installed `jev-droid` profiles, starts only a selected local model if needed, runs Jeo's **own** catalog via the harness, and stops only its own server. Do not duplicate model definitions or enable global Jev profiles.
 
 ## Commands
 - Validate catalog: `python3 scripts/validate-catalog-projections.py`
@@ -23,6 +24,8 @@ A curated, cross-platform catalog of categorized AI agent skills (current count:
 - Layout check: `python3 flatten_skills.py --dry-run`
 - Isolated browse/install: `scripts/jeo-local.sh categories` / `scripts/jeo-local.sh install <names> --dry-run`
 - Isolation regression: `scripts/test-jeo-local.sh`
+- Shared System One models: `scripts/jeo-local.sh systemone models`
+- Shared-model routing: `scripts/jeo-local.sh systemone route <model> "<task>"`
 
 ## Code Graph
 The repo is indexed into `.mex/graph.db`. Use it to avoid re-reading code you already have — it is one tool alongside Grep/Glob, not a replacement for them.

@@ -28,6 +28,7 @@ Then read this file fully before doing anything else in this session.
 **Working in the isolated AcidicSoil fork (verified 2026-11-12):**
 - `scripts/jeo-local.sh` pins the fork catalog, anchors execution in its checkout, and installs only to the checkout's ignored `.jeo-local/.agents/skills`; `jeo-skill` was successfully installed there.
 - `main` tracks `origin/main`. Global skill files, host hooks, and shared-root refresh are intentionally out of scope.
+- Fork-local `scripts/jeo-local.sh systemone models|route` reuses model profiles served by the separately installed `jev-droid` CLI while evaluating this checkout's own skill catalog. The wrapper isolates Jev environment variables and starts/stops only an owned model process; it does not configure host agents.
 - Repowise is installed but this repository has no `.repowise/` index; do not initialize without approval.
 
 **Upstream shared-root reference (not configured by the isolated workflow):**

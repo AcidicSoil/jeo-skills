@@ -34,4 +34,5 @@ reject install code-review --agent claude-code --dry-run
 reject install code-review --source https://github.com/other/repo --dry-run
 reject link
 reject prune-retired
+node --test "$repo/scripts/test-jeo-systemone.mjs"
 printf 'PASS: local router and isolation guards\n'

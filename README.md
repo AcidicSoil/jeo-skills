@@ -51,7 +51,21 @@ cd ~/tools/jeo-skills
 ./scripts/test-jeo-local.sh
 ```
 
-It intentionally rejects `--global`, host-specific targets, `--setup`, `--with-hooks`, global CLI linking, and lifecycle cleanup. It does not change `~/.agents/skills`, agent hooks, or other projects. Source skills remain in `.agent-skills/`; installing a selection creates a separate project-local copy. The options below describe the general upstream setup, **not** this isolated workflow.
+It intentionally rejects `--global`, host-specific targets, `--setup`, `--with-hooks`, global CLI linking, and lifecycle cleanup. It does not change `~/.agents/skills`, agent hooks, or other projects. Source skills remain in `.agent-skills/`; installing a selection creates a separate project-local copy.
+
+**Shared local System One models (still isolated):** Reuse the models configured by the installed `jev-droid` fork without duplicating model paths or installing Jeo skills into Droid. The command starts the selected model only when needed, routes against this fork's own skill catalog, and stops only a server it started. An already-running model is reused and left running.
+
+```bash
+./scripts/jeo-local.sh systemone models
+./scripts/jeo-local.sh systemone route julia "Review TypeScript architecture"
+./scripts/jeo-local.sh systemone route startlux "Review a Python implementation"
+./scripts/jeo-local.sh systemone route intern "Evaluate a change"
+./scripts/jeo-local.sh systemone route clef "Choose relevant skills"
+```
+
+The same command accepts the configured `default` (Laya) and `kev` profiles. Model selection comes from `jev-droid models` and the actual served model identity, never a second registry. Requires `jev-droid` on PATH; override its executable with `JEO_SYSTEMONE_DROID_BIN` for testing. Server startup may take a while for memory-staged GGUFs such as Clef; adjust `JEO_SYSTEMONE_STARTUP_TIMEOUT_MS` if needed. All model requests stay on HTTP loopback, and the harness uses a checkout-local environment under `.jeo-local/`. Outputs are advisory; no calibration attestation, global skill installation, hook changes, or LM Studio are implied. Run `scripts/test-jeo-local.sh` to test isolation and model reuse.
+
+The options below describe the general upstream setup, **not** this isolated workflow.
 
 **Option A: let your agent install it.** Paste this into Claude Code, Codex, Antigravity CLI (`agy`), Kimi Code, Grok Build, OpenCode or another coding agent:
 

@@ -203,12 +203,18 @@ export function describeBackend(kind, { model: modelOverride } = {}) {
   const driver = cfg('systemone', 'JEV_SYSTEMONE_DRIVER') || 'typesafe';
   const capRaw = cfg('systemone', 'JEV_SYSTEMONE_CHOICE_CAP');
   const cap = capRaw ? Number(capRaw) : CHOICE_CAPS.systemone[driver];
+  const timeoutRaw = cfg('systemone', 'JEV_SYSTEMONE_TIMEOUT_MS');
+  const maxStateRaw = cfg('systemone', 'JEV_SYSTEMONE_MAX_STATE_CHARS');
+  const timeoutMs = timeoutRaw ? Number(timeoutRaw) : TIMEOUTS.systemone[driver] || 60000;
+  const maxStateChars = maxStateRaw ? Number(maxStateRaw) : MAX_STATE_CHARS.systemone[driver] || 3000;
   const desc = { ...base, driver, endpoint: cfg('systemone', 'JEV_SYSTEMONE_ENDPOINT') || null,
     model: modelOverride || cfg('systemone', 'JEV_SYSTEMONE_MODEL') || null, apiKey: cfg('systemone', 'JEV_SYSTEMONE_API_KEY') || null,
     headJson: cfg('systemone', 'JEV_SYSTEMONE_HEAD_JSON') || null, calibrationJson: cfg('systemone', 'JEV_SYSTEMONE_CALIBRATION_JSON') || null,
     choiceCap: Number.isInteger(cap) && cap > 1 ? cap : CHOICE_CAPS.systemone[driver] || 16, batch: driver === 'typesafe',
-    timeoutMs: TIMEOUTS.systemone[driver] || 60000, maxStateChars: MAX_STATE_CHARS.systemone[driver] || 3000 };
-  if (!SYSTEMONE_DRIVERS.includes(driver)) desc.error = `Invalid JEV_SYSTEMONE_DRIVER: ${driver}`;
+    timeoutMs, maxStateChars };
+  if (timeoutRaw && (!Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > 300000)) desc.error = 'JEV_SYSTEMONE_TIMEOUT_MS must be 1000..300000';
+  else if (maxStateRaw && (!Number.isInteger(maxStateChars) || maxStateChars < 1024 || maxStateChars > 100000)) desc.error = 'JEV_SYSTEMONE_MAX_STATE_CHARS must be 1024..100000';
+  else if (!SYSTEMONE_DRIVERS.includes(driver)) desc.error = `Invalid JEV_SYSTEMONE_DRIVER: ${driver}`;
   else if (desc.configured && !desc.model) desc.error = 'JEV_SYSTEMONE_MODEL is required';
   else if (desc.configured && driver === 'vllm-jev-decision' && (!desc.headJson || !desc.calibrationJson)) desc.error = 'vllm-jev-decision requires JEV_SYSTEMONE_HEAD_JSON and JEV_SYSTEMONE_CALIBRATION_JSON';
   return desc;
