@@ -1,7 +1,7 @@
 ---
 name: agents
 description: Always-loaded project anchor. Read this first. Contains project identity, non-negotiables, commands, and pointer to ROUTER.md for full context.
-last_updated: 2026-11-06
+last_updated: 2026-11-12
 ---
 
 # jeo-skills
@@ -15,12 +15,14 @@ A curated, cross-platform catalog of categorized AI agent skills (current count:
 - Never create category subfolders under `.agent-skills/` — one flat `<name>/SKILL.md` per skill, enforced by `flatten_skills.py --dry-run`
 - Never hand-edit `.agent-skills/skills.toon` or the README category tables to "fix" a validation failure — they are projections of `skills.json`; fix the manifest instead
 - Never commit a new repository-root file or directory without adding its own `!/name` line to the root allowlist in `.gitignore` — everything at the root is ignored by default so local notes, agent state, and scratch files never reach GitHub; prefer putting new work under `.agent-skills/` or an existing allowlisted directory
+- For this isolated fork checkout, use `scripts/jeo-local.sh`; it pins the local catalog and checkout-scoped `.jeo-local/.agents/skills` installation. Do not run `install.sh`, `jeo-skill link`, global/shared-root refresh, or hook/setup wiring without separate approval. No existing `~/.agents/skills` entries may be modified.
 
 ## Commands
 - Validate catalog: `python3 scripts/validate-catalog-projections.py`
 - Frontmatter audit: `python3 scripts/repair-skill-frontmatter.py --check`
 - Layout check: `python3 flatten_skills.py --dry-run`
-- Browse/install: `jeo-skill categories` / `jeo-skill install <names> --dry-run`
+- Isolated browse/install: `scripts/jeo-local.sh categories` / `scripts/jeo-local.sh install <names> --dry-run`
+- Isolation regression: `scripts/test-jeo-local.sh`
 
 ## Code Graph
 The repo is indexed into `.mex/graph.db`. Use it to avoid re-reading code you already have — it is one tool alongside Grep/Glob, not a replacement for them.

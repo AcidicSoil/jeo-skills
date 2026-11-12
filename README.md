@@ -38,6 +38,21 @@ Project-authored material is available under the [MIT License](LICENSE). When di
 
 ## 🚀 Quick start
 
+### Isolated fork-local workflow
+
+For this fork's checkout at `~/tools/jeo-skills`, use the local launcher rather than the global installer. It reads this fork's catalog and installs selected skills only under the checkout's ignored `.jeo-local/.agents/skills/` directory:
+
+```bash
+cd ~/tools/jeo-skills
+./scripts/jeo-local.sh doctor
+./scripts/jeo-local.sh search "react performance"
+./scripts/jeo-local.sh install jeo-skill --dry-run
+./scripts/jeo-local.sh install jeo-skill --yes
+./scripts/test-jeo-local.sh
+```
+
+It intentionally rejects `--global`, host-specific targets, `--setup`, `--with-hooks`, global CLI linking, and lifecycle cleanup. It does not change `~/.agents/skills`, agent hooks, or other projects. Source skills remain in `.agent-skills/`; installing a selection creates a separate project-local copy. The options below describe the general upstream setup, **not** this isolated workflow.
+
 **Option A: let your agent install it.** Paste this into Claude Code, Codex, Antigravity CLI (`agy`), Kimi Code, Grok Build, OpenCode or another coding agent:
 
 ```text

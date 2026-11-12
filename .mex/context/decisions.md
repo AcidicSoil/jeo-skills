@@ -15,7 +15,7 @@ edges:
 # Decisions usually ground sparsely; add only symbols that implement the decision.
 # Entry shape: { node: "function:<tier-1-id>", fingerprint: "mh2:64:<base64url>" }
 grounds_to: []
-last_updated: [2026-11-07]
+last_updated: 2026-11-12
 ---
 
 # Decisions
@@ -34,6 +34,14 @@ last_updated: [2026-11-07]
      The history must be preserved — this is the event clock. -->
 
 ## Decision Log
+
+### Isolated fork-local catalog evaluation
+**Date:** 2026-11-12
+**Status:** Accepted
+**Decision:** Use `scripts/jeo-local.sh` for catalog discovery and selected installs within `~/tools/jeo-skills/.jeo-local/.agents/skills`; do not integrate the fork with existing global skill roots, host hooks, or background refresh.
+**Reasoning:** Evaluate the fork without mixing it into the independently maintained skill library.
+**Alternatives considered:** General upstream `install.sh` (rejected: shared/global default), per-host installs (rejected: side effects and potential symlink conflicts).
+**Consequences:** Explicitly revisit runtime integration later; the local launcher blocks global, host-specific and setup/hook commands.
 
 ### Shared-root-only refresh + per-host symlinks (no per-host copy installs)
 **Date:** 2026-11-06

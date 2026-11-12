@@ -14,7 +14,7 @@ edges:
     condition: when setting up the dev environment or running the project for the first time
   - target: patterns/INDEX.md
     condition: when starting a task — check the pattern index for a matching pattern file
-last_updated: 2026-11-06
+last_updated: 2026-11-12
 ---
 
 # Session Bootstrap
@@ -25,7 +25,12 @@ Then read this file fully before doing anything else in this session.
 
 ## Current Project State
 
-**Working:**
+**Working in the isolated AcidicSoil fork (verified 2026-11-12):**
+- `scripts/jeo-local.sh` pins the fork catalog, anchors execution in its checkout, and installs only to the checkout's ignored `.jeo-local/.agents/skills`; `jeo-skill` was successfully installed there.
+- `main` tracks `origin/main`. Global skill files, host hooks, and shared-root refresh are intentionally out of scope.
+- Repowise is installed but this repository has no `.repowise/` index; do not initialize without approval.
+
+**Upstream shared-root reference (not configured by the isolated workflow):**
 - 2026-11 full install: 425 catalog skills in shared root `~/.agents/skills` (verified 425/425 catalog slots), non-catalog skills preserved (`other-source` entries untouched)
 - Host roots `claude`, `pi`, `gjc`, `antigravity`, `cursor`, `aside-user` are per-skill symlinked to the shared root — 425/425 healthy per host (cursor populated 2026-11-06, +423 links), broken-link scan 0
 - `scripts/skills-upgrade.sh` (pull → doctor → shared-root refresh → prune-retired → link reconcile → verify) runs end-to-end with PASS; `scripts/refresh-host-links.py` is idempotent (re-run = empty plan); cron-safe PATH fallback for npx
