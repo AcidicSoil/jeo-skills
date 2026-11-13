@@ -11,13 +11,16 @@ last_updated: 2026-11-13
 1. Check the installed `jev-droid` runtime and models without starting them:
    `./scripts/jeo-systemone.sh models` (table) or
    `./scripts/jeo-local.sh systemone models` (JSON).
-2. Select an existing profile by name; do **not** copy models or enable hooks:
-   `./scripts/jeo-systemone.sh julia "Review architecture"` (table) or
-   `./scripts/jeo-local.sh systemone route julia "Review architecture"` (JSON).
+2. Edit `scripts/jeo-systemone.config.json` to set the default `model`,
+   `store` (a compatible `skills.json` catalog or containing directory), and
+   `format` (`table` or `json`). A relative store is resolved next to this
+   config file. Run `./scripts/jeo-systemone.sh "Review architecture"` using
+   those defaults, or provide `julia` before the task to override the model.
 3. The wrapper uses the model registry and actual served identity, then runs
-   `jev/jev-harness.mjs` against `.agent-skills/skills.json` in a checkout-only environment.
-   An optional `--store <path>` before the model selects another existing
-   `skills.json` catalog for the request only; it never installs those skills.
+   `jev/jev-harness.mjs` against the configured skills catalog in a checkout-only
+   environment. `--store <path>` overrides the catalog for one request only;
+   it never installs those skills. The original `jeo-local.sh systemone route`
+   continues to emit JSON without reading wrapper preferences.
 4. If the wrapper started the model, it stops it. An already-running model stays running.
    No `~/.agents/skills` writes or global Jev profiles are permitted.
 5. Test with `scripts/test-jeo-local.sh`, plus targeted real inference for a changed runtime.

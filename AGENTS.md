@@ -26,7 +26,7 @@ A curated, cross-platform catalog of categorized AI agent skills (current count:
 - Isolation regression: `scripts/test-jeo-local.sh`
 - Shared System One models: `scripts/jeo-local.sh systemone models`
 - Shared-model routing (JSON): `scripts/jeo-local.sh systemone route <model> "<task>"`
-- Human-readable model/skill tables: `scripts/jeo-systemone.sh models` / `scripts/jeo-systemone.sh <model> "<task>"` (`--store <path>` uses a separate catalog for one request).
+- Human-readable model/skill tables: `scripts/jeo-systemone.sh models` / `scripts/jeo-systemone.sh [model] "<task>"`. Defaults are editable in `scripts/jeo-systemone.config.json` (model, store, table/JSON format); CLI model and `--store` override them per request.
 
 ## Code Graph
 The repo is indexed into `.mex/graph.db`. Use it to avoid re-reading code you already have — it is one tool alongside Grep/Glob, not a replacement for them.

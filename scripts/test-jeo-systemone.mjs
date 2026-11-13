@@ -4,7 +4,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { createServer } from 'node:net';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { test } from 'node:test';
 
 const repo = resolve(import.meta.dirname, '..');
@@ -106,6 +106,54 @@ test('table wrapper lists models without starting a model', async () => {
   assert.match(result.stdout, /julia/);
   assert.match(result.stdout, /startlux/);
   assert.equal(readFileSync(environment.JEO_TEST_LAUNCHES, 'utf8'), '');
+});
+
+test('wrapper preferences select the model and output format', async () => {
+  const environment = env(await freePort());
+  const config = join(dir, 'preferences.json');
+  writeFileSync(config, JSON.stringify({ model: 'julia', store: null, format: 'table' }));
+  const table = runTable(['--config', config, 'Review React accessibility'], environment);
+  assert.equal(table.status, 0, table.stderr);
+  assert.match(table.stdout, /Model:\s+julia-decision/);
+  assert.match(table.stdout, /Skill\s+Category\s+Fit/);
+  assert.equal(readFileSync(environment.JEO_TEST_LAUNCHES, 'utf8').trim(), 'julia');
+
+  writeFileSync(config, JSON.stringify({ model: 'julia', store: null, format: 'json' }));
+  const json = runTable(['--config', config, 'startlux', 'Review React accessibility'], environment);
+  assert.equal(json.status, 0, json.stderr);
+  assert.equal(JSON.parse(json.stdout).backend.model, 'startlux-decision');
+});
+
+test('relative skill-store preference resolves beside its config file', async () => {
+  const environment = env(await freePort());
+  const config = join(dir, 'relative-store.json');
+  writeFileSync(config, JSON.stringify({
+    model: 'julia', store: relative(dir, repo), format: 'table',
+  }));
+  const result = runTable(['--config', config, 'Review React accessibility'], environment);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /Catalog:\s+[0-9]+ skills/);
+  assert.match(result.stdout, /Model:\s+julia-decision/);
+});
+
+test('invalid preferences fail before a model starts', async () => {
+  const environment = env(await freePort());
+  const config = join(dir, 'bad-preferences.json');
+  writeFileSync(config, JSON.stringify({ model: 'julia', format: 'markdown' }));
+  const result = runTable(['--config', config, 'Review React'], environment);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Invalid System One config property: format/);
+  assert.equal(readFileSync(environment.JEO_TEST_LAUNCHES, 'utf8'), '');
+});
+
+test('command-line skill store overrides the configured store', async () => {
+  const environment = env(await freePort());
+  const config = join(dir, 'preferences-overrides.json');
+  writeFileSync(config, JSON.stringify({ model: 'julia', store: '/missing/store', format: 'table' }));
+  const result = runTable(['--config', config, '--store', repo, 'Review React accessibility'], environment);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /Model:\s+julia-decision/);
+  assert.match(result.stdout, /Catalog:\s+[0-9]+ skills/);
 });
 
 test('table wrapper routes against a selected additional store', async () => {

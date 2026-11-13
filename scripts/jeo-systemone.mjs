@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // Fork-local adapter: reuse Droid's model runtimes, not its skill catalog.
 import { spawn, execFile } from 'node:child_process';
-import { mkdir, stat } from 'node:fs/promises';
+import { mkdir, readFile, stat } from 'node:fs/promises';
 import { modelsTable, skillsTable } from './jeo-systemone-table.mjs';
-import { join, resolve, basename } from 'node:path';
+import { join, resolve, basename, dirname } from 'node:path';
 import { promisify } from 'node:util';
 import { setTimeout as sleep } from 'node:timers/promises';
 
@@ -174,30 +174,65 @@ async function route(name, task, { store, table } = {}) {
 }
 
 function parseOptions(args) {
-  let table = false;
-  let store;
-  while (args[0] === '--table' || args[0] === '--store') {
-    if (args.shift() === '--table') table = true;
-    else {
-      store = args.shift();
-      if (!store) throw new Error('--store requires a skills catalog path');
+  const options = { args, table: false };
+  while (['--table', '--store', '--config'].includes(args[0])) {
+    const flag = args.shift();
+    if (flag === '--table') {
+      options.table = true;
+      continue;
+    }
+    const value = args.shift();
+    if (!value) throw new Error(flag + ' requires a path');
+    if (flag === '--store') options.store = value;
+    else options.configPath = value;
+  }
+  return options;
+}
+
+async function loadPreferences(file) {
+  if (!file) return {};
+  let preferences;
+  try { preferences = JSON.parse(await readFile(file, 'utf8')); }
+  catch (error) { throw new Error('Cannot read System One config ' + file + ': ' + error.message); }
+  if (Object.prototype.toString.call(preferences) !== '[object Object]') {
+    throw new Error('Invalid System One config: expected an object');
+  }
+  const checks = {
+    model: value => value === null || (typeof value === 'string' && Boolean(value.trim())),
+    store: value => value === null || (typeof value === 'string' && Boolean(value.trim())),
+    format: value => ['table', 'json'].includes(value),
+  };
+  for (const [key, check] of Object.entries(checks)) {
+    if (preferences[key] !== undefined && !check(preferences[key])) {
+      throw new Error('Invalid System One config property: ' + key);
     }
   }
-  return { args, store, table };
+  return { ...preferences,
+    store: preferences.store ? resolve(dirname(file), preferences.store) : null };
+}
+
+function routingRequest(args, defaultModel) {
+  const parts = args[0] === 'route' ? args.slice(1) : args;
+  const model = parts.length > 1 ? parts[0] : defaultModel;
+  const task = parts.length > 1 ? parts.slice(1).join(' ') : parts[0];
+  if (!model || !task) {
+    throw new Error('Usage: jeo-systemone.sh [--store PATH] [MODEL] "task"');
+  }
+  return { model, task };
+}
+
+async function printModels(table) {
+  const found = await profiles();
+  process.stdout.write(table ? modelsTable(found) : JSON.stringify({ profiles: found }) + '\n');
 }
 
 async function main(input) {
-  const { args, store, table } = parseOptions(input);
-  if (args.length === 1 && args[0] === 'models') {
-    const found = await profiles();
-    process.stdout.write(table ? modelsTable(found) : JSON.stringify({ profiles: found }) + '\n');
-    return;
-  }
-  if (args[0] === 'route') args.shift();
-  if (args.length < 2) {
-    throw new Error('Usage: jeo-systemone.sh [--store PATH] models | MODEL "task"');
-  }
-  await route(args[0], args.slice(1).join(' '), { store, table });
+  const options = parseOptions(input);
+  const preferences = await loadPreferences(options.configPath);
+  const table = options.table || preferences.format === 'table';
+  if (options.args.length === 1 && options.args[0] === 'models') return printModels(table);
+  const { model, task } = routingRequest(options.args, preferences.model);
+  return route(model, task, { store: options.store ?? preferences.store, table });
 }
 
 main(process.argv.slice(2)).catch(error => {

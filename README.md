@@ -63,20 +63,38 @@ It intentionally rejects `--global`, host-specific targets, `--setup`, `--with-h
 ./scripts/jeo-local.sh systemone route clef "Choose relevant skills"
 ```
 
-For terminal use, the thin wrapper displays a table of models and matching skills instead of the full JSON response:
+For terminal use, the wrapper reads **`scripts/jeo-systemone.config.json`** and
+displays a table of models and matching skills. Edit this file to change your
+defaults:
+
+```json
+{
+  "model": "default",
+  "store": null,
+  "format": "table"
+}
+```
+
+- `model`: the configured Droid profile to use when you omit a model argument
+  (for example `"julia"` or `"kev"`).
+- `store`: `null` uses this fork's Jeo catalog; set a path to a compatible
+  `skills.json`, its parent directory, or a store with `.agent-skills/skills.json`.
+  Relative paths resolve from the config file's directory.
+- `format`: `"table"` for terminal output or `"json"` for structured output.
 
 ```bash
 ./scripts/jeo-systemone.sh models
-./scripts/jeo-systemone.sh julia "Review TypeScript architecture"
+./scripts/jeo-systemone.sh "Find testing skills" # uses configured model and store
+./scripts/jeo-systemone.sh julia "Review TypeScript architecture" # model override
 ./scripts/jeo-systemone.sh --store /path/to/another-store kev "Find testing skills"
 ```
 
-`--store` accepts a Jeo-compatible `skills.json` file, a directory containing
-`skills.json`, or a store containing `.agent-skills/skills.json`. It changes
-the catalog for **that command only**, without copying or installing skills.
-A plain directory of `SKILL.md` files without a compatible catalog is not
-yet supported. The existing `jeo-local.sh systemone` commands continue to
-emit JSON for machine consumers.
+Command-line model and `--store` selections override the config for that
+invocation; `--config /path/to/custom.json` uses a different preferences file.
+No store contents are copied or installed. A plain collection of `SKILL.md`
+directories without a compatible catalog is not yet supported. The existing
+`jeo-local.sh systemone` commands continue to emit JSON for machine consumers
+and do not read the wrapper's preferences.
 
 Both entry points accept the configured `default` (Laya) and `kev` profiles. Model selection comes from `jev-droid models` and the actual served model identity, never a second registry. Requires `jev-droid` on PATH; override its executable with `JEO_SYSTEMONE_DROID_BIN` for testing. Server startup may take a while for memory-staged GGUFs such as Clef; adjust `JEO_SYSTEMONE_STARTUP_TIMEOUT_MS` if needed. All model requests stay on HTTP loopback, and the harness uses a checkout-local environment under `.jeo-local/`. Outputs are advisory; no calibration attestation, global skill installation, hook changes, or LM Studio are implied. Run `scripts/test-jeo-local.sh` to test isolation and model reuse.
 
