@@ -26,7 +26,7 @@ A curated, cross-platform catalog of categorized AI agent skills (current count:
 - Isolation regression: `scripts/test-jeo-local.sh`
 - Shared System One models: `scripts/jeo-local.sh systemone models`
 - Shared-model routing (JSON): `scripts/jeo-local.sh systemone route <model> "<task>"`
-- Human-readable model/skill tables: `scripts/jeo-systemone.sh models` / `scripts/jeo-systemone.sh [model] "<task>"`. Defaults are editable in `scripts/jeo-systemone.config.json` (model, store, table/JSON format); CLI model and `--store` override them per request.
+- Human-readable model/skill tables: `scripts/jeo-systemone.sh models` / `scripts/jeo-systemone.sh [model] "<task>"`. `config sync` discovers Droid profile names into `~/.config/jeo-skills/systemone.json` (XDG aware); `scripts/jeo-systemone.config.json` overlays per-field defaults, including routing thresholds and model-specific resource budgets. `--store` can use `~/.agents/skills` after refreshing its catalog with `python3 scripts/index-installed-skills.py ~/.agents/skills` (metadata only; no skill mutation).
 
 ## Code Graph
 The repo is indexed into `.mex/graph.db`. Use it to avoid re-reading code you already have — it is one tool alongside Grep/Glob, not a replacement for them.

@@ -1,5 +1,8 @@
 {
-  "model": "default",
+  "model": null,
   "store": null,
-  "format": "table"
+  "format": null,
+  "routing": {},
+  "systemOne": {},
+  "profiles": {}
 }

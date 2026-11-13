@@ -11,15 +11,22 @@ last_updated: 2026-11-13
 1. Check the installed `jev-droid` runtime and models without starting them:
    `./scripts/jeo-systemone.sh models` (table) or
    `./scripts/jeo-local.sh systemone models` (JSON).
-2. Edit `scripts/jeo-systemone.config.json` to set the default `model`,
-   `store` (a compatible `skills.json` catalog or containing directory), and
-   `format` (`table` or `json`). A relative store is resolved next to this
-   config file. Run `./scripts/jeo-systemone.sh "Review architecture"` using
-   those defaults, or provide `julia` before the task to override the model.
-3. The wrapper uses the model registry and actual served identity, then runs
-   `jev/jev-harness.mjs` against the configured skills catalog in a checkout-only
-   environment. `--store <path>` overrides the catalog for one request only;
-   it never installs those skills. The original `jeo-local.sh systemone route`
+2. Run `./scripts/jeo-systemone.sh config sync` to populate
+   `~/.config/jeo-skills/systemone.json` with configured Droid profiles.
+   Edit global `model`, `store`, `format`, `routing`, `systemOne`, or
+   per-model `profiles` settings as needed; the local
+   `scripts/jeo-systemone.config.json` is a field-level overlay (null inherits).
+   Relative stores resolve beside their config. Run
+   `./scripts/jeo-systemone.sh "Review architecture"` with these defaults,
+   or specify `julia` before the task to override the model.
+3. The wrapper uses the actual Droid registry and served model identity, then
+   runs `jev/jev-harness.mjs` against the selected skills catalog. The
+   `gateThreshold` and `fitThreshold` drive harness filtering; `topK`,
+   `choiceCap`, `maxStateChars`, and timeouts are bounded by their actual
+   code contracts. `--store <path>` overrides the catalog per request.
+   For the shared installed root, run
+   `python3 -B scripts/index-installed-skills.py ~/.agents/skills` before
+   `--store ~/.agents/skills`. The original `jeo-local.sh systemone route`
    continues to emit JSON without reading wrapper preferences.
 4. If the wrapper started the model, it stops it. An already-running model stays running.
    No `~/.agents/skills` writes or global Jev profiles are permitted.

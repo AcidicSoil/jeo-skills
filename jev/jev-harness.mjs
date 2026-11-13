@@ -8,6 +8,8 @@ try { await new Response('{}').json(); new Request('http://127.0.0.1'); } catch 
 import { homedir } from 'node:os';
 import { basename, dirname, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { GATE_THRESHOLD, FITS_THRESHOLD, DEFAULT_TOP_K } from './route-defaults.mjs';
+export { GATE_THRESHOLD, FITS_THRESHOLD } from './route-defaults.mjs';
 
 // ── Contract constants ───────────────────────────────────────────────────────
 export const BACKEND_KINDS = ['api', 'local', 'ollama', 'lmstudio', 'systemone'];
@@ -32,8 +34,6 @@ const SYSTEMONE_DRIVERS = ['typesafe', 'decide', 'vllm-jev-decision'];
 const DEFAULT_API_URL = 'https://api.typesafe.ai/v1/systemone';
 const DEFAULT_LOCAL_URL = 'http://127.0.0.1:8763/v1/systemone';
 const THRESHOLD = 0.8;
-export const GATE_THRESHOLD = 0.30;
-export const FITS_THRESHOLD = 0.30;
 export const SHARD_FINALISTS = 3;
 export const MAX_CHOICE_SHARDS = 4;
 export const SHORTLIST_SIZE = 12;
@@ -868,7 +868,7 @@ const GATE_QUESTIONS = {
   'gate::prose_suffices': noul('Could a knowledgeable generalist fully satisfy the `request` in prose, with no tools, no documentation, and no access to the user\'s files or accounts?'),
 };
 const INVERTED_GATES = new Set(['gate::prose_suffices']);
-function gateFrom(answers) {
+function gateFrom(answers, gateThreshold = GATE_THRESHOLD) {
   const values = {};
   const oriented = [];
   for (const key of Object.keys(GATE_QUESTIONS)) {
@@ -877,7 +877,7 @@ function gateFrom(answers) {
     values[key.replace('gate::', '')] = p;
     oriented.push(INVERTED_GATES.has(key) ? 1 - p : p);
   }
-  return { value: oriented.length ? oriented.reduce((a, b) => a + b, 0) / oriented.length : null, threshold: GATE_THRESHOLD, values };
+  return { value: oriented.length ? oriented.reduce((a, b) => a + b, 0) / oriented.length : null, threshold: gateThreshold, values };
 }
 function describeFor(skill, excerpt) {
   return excerpt ? `${skill.description} — ${excerpt}` : skill.description;
@@ -918,7 +918,7 @@ function verifyQuestions(task, budgeted, backend, { withGate = true } = {}) {
   return questions;
 }
 
-async function selectSharded(catalog, task, backend, kind, shards, topK) {
+async function selectSharded(catalog, task, backend, kind, shards, { gateThreshold, fitThreshold }) {
   const groups = chunk(catalog.skills, shards);
   const questions = gateQuestions(task);
   groups.forEach((group, i) => {
@@ -927,8 +927,8 @@ async function selectSharded(catalog, task, backend, kind, shards, topK) {
   });
   const first = await requestJev({ request: task }, questions, { op: 'route-skills', kinds: [kind], model: backend.modelOverride });
   if (first.error || !first.answers) return { error: first, envelope: first };
-  const gate = gateFrom(first.answers);
-  if (gate.value !== null && gate.value < GATE_THRESHOLD) return { gate, finalists: [], ranked: [], reason: 'gate', envelope: first, requests: first.requests ?? 1 };
+  const gate = gateFrom(first.answers, gateThreshold);
+  if (gate.value !== null && gate.value < gateThreshold) return { gate, finalists: [], ranked: [], reason: 'gate', envelope: first, requests: first.requests ?? 1 };
   const byName = Object.fromEntries(catalog.skills.map(s => [s.name, s]));
   const finalists = [];
   groups.forEach((group, i) => {
@@ -942,10 +942,10 @@ async function selectSharded(catalog, task, backend, kind, shards, topK) {
   if (second.error || !second.answers) return { error: second, envelope: second };
   const which = second.answers.which?.probabilities || {};
   const ranked = candidates.map(c => ({ name: c.name, fits: second.answers[`fits::${c.name}`]?.probability ?? 0, probability: which[c.name] ?? 0, shard: c.shard }));
-  return { gate, finalists: ranked, ranked: rankCandidates(ranked), reason: null, envelope: second, requests: (first.requests ?? 1) + (second.requests ?? 1) };
+  return { gate, finalists: ranked, ranked: rankCandidates(ranked, fitThreshold), reason: null, envelope: second, requests: (first.requests ?? 1) + (second.requests ?? 1) };
 }
 
-async function selectShortlist(catalog, task, backend, kind, topK) {
+async function selectShortlist(catalog, task, backend, kind, { gateThreshold, fitThreshold }) {
   const terms = taskTerms(task);
   const scored = catalog.skills.map(s => ({ skill: s, score: scoreSkill(s, terms) })).filter(x => x.score > 0)
     .sort((a, b) => b.score - a.score || a.skill.name.localeCompare(b.skill.name)).slice(0, SHORTLIST_SIZE);
@@ -955,35 +955,37 @@ async function selectShortlist(catalog, task, backend, kind, topK) {
   const budgeted = budgetCandidates(task, candidates, backend.maxStateChars);
   const envelope = await requestJev(budgeted, verifyQuestions(task, budgeted, backend), { op: 'route-skills', kinds: [kind], model: backend.modelOverride });
   if (envelope.error || !envelope.answers) return { error: envelope, envelope };
-  const gate = gateFrom(envelope.answers);
-  if (gate.value !== null && gate.value < GATE_THRESHOLD) return { gate, finalists: [], ranked: [], reason: 'gate', envelope, requests: envelope.requests ?? 1 };
+  const gate = gateFrom(envelope.answers, gateThreshold);
+  if (gate.value !== null && gate.value < gateThreshold) return { gate, finalists: [], ranked: [], reason: 'gate', envelope, requests: envelope.requests ?? 1 };
   const which = envelope.answers.which?.probabilities || null;
   const ranked = candidates.map(c => ({ name: c.name, fits: envelope.answers[`fits::${c.name}`]?.probability ?? 0, probability: which ? (which[c.name] ?? 0) : null, lexical: c.lexical }));
-  return { gate, finalists: ranked, ranked: rankCandidates(ranked), reason: null, envelope, requests: envelope.requests ?? 1 };
+  return { gate, finalists: ranked, ranked: rankCandidates(ranked, fitThreshold), reason: null, envelope, requests: envelope.requests ?? 1 };
 }
 
-function rankCandidates(items) {
-  return items.filter(i => i.fits >= FITS_THRESHOLD)
+function rankCandidates(items, fitThreshold = FITS_THRESHOLD) {
+  return items.filter(i => i.fits >= fitThreshold)
     .sort((a, b) => ((b.probability ?? b.fits) - (a.probability ?? a.fits)) || (b.fits - a.fits) || a.name.localeCompare(b.name));
 }
 
-function selectMock(catalog, task, topK) {
+function selectMock(catalog, task, { gateThreshold, fitThreshold }) {
   const terms = taskTerms(task);
   const scored = catalog.skills.map(s => ({ skill: s, score: scoreSkill(s, terms) })).filter(x => x.score > 0)
     .sort((a, b) => b.score - a.score || a.skill.name.localeCompare(b.skill.name)).slice(0, SHORTLIST_SIZE);
   const max = scored[0]?.score || 1;
   const sum = scored.reduce((n, x) => n + x.score, 0) || 1;
   const ranked = scored.map(({ skill, score }) => ({ name: skill.name, fits: score / max, probability: score / sum, lexical: score }));
-  return { gate: { value: scored.length ? 1 : 0, threshold: GATE_THRESHOLD, values: {} }, finalists: ranked, ranked: rankCandidates(ranked), reason: scored.length ? null : 'shortlist-empty', envelope: null, requests: 0 };
+  return { gate: { value: scored.length ? 1 : 0, threshold: gateThreshold, values: {} }, finalists: ranked, ranked: rankCandidates(ranked, fitThreshold), reason: scored.length ? null : 'shortlist-empty', envelope: null, requests: 0 };
 }
 
 function registryFallback(task, note) {
   return { skill: 'find-skills', command: `npx skills find '${task.replace(/'/g, "'\\''")}'`, note };
 }
 
-export async function routeSkills(task, { mock = false, topK = 3, override = null, model = null } = {}) {
+export async function routeSkills(task, { mock = false, topK = DEFAULT_TOP_K, override = null, model = null, gateThreshold = GATE_THRESHOLD, fitThreshold = FITS_THRESHOLD } = {}) {
   if (!task?.trim()) throw new Error('route-skills requires a task string');
   if (!Number.isInteger(topK) || topK < 1 || topK > 50) throw new Error('--top-k must be an integer from 1 to 50');
+  if (!Number.isFinite(gateThreshold) || gateThreshold < 0 || gateThreshold > 1) throw new Error('--gate-threshold must be a number from 0 to 1');
+  if (!Number.isFinite(fitThreshold) || fitThreshold < 0 || fitThreshold > 1) throw new Error('--fit-threshold must be a number from 0 to 1');
   if (PROFILE_ERROR) throw new Error(PROFILE_ERROR);
   if (PROFILE_DISABLED) throw new Error(`Jev profile '${PROFILE}' is disabled`);
   const catalog = await loadCatalog();
@@ -995,8 +997,9 @@ export async function routeSkills(task, { mock = false, topK = 3, override = nul
   let selection = null;
   let backendUsed = null;
   let attempted = [];
+  const thresholds = { gateThreshold, fitThreshold };
   if (mock) {
-    outcome = selectMock(catalog, task, topK);
+    outcome = selectMock(catalog, task, thresholds);
     selection = { strategy: 'mock', choiceCap: null, shards: 0, requests: 0 };
     backendUsed = { kind: 'mock', driver: 'mock', model: 'jev-mock', configuredModel: 'jev-mock', tier: 'mock', attestation: null };
   } else {
@@ -1014,8 +1017,8 @@ export async function routeSkills(task, { mock = false, topK = 3, override = nul
       let result;
       try {
         result = strategy === 'sharded'
-          ? await selectSharded(catalog, task, backend, kind, shards, topK)
-          : await selectShortlist(catalog, task, backend, kind, topK);
+          ? await selectSharded(catalog, task, backend, kind, shards, thresholds)
+          : await selectShortlist(catalog, task, backend, kind, thresholds);
       } catch (error) {
         errors.push({ kind, error: String(error.message || error) }); attempted.push(kind); continue;
       }
@@ -1794,7 +1797,9 @@ export async function jevStatus({ timeoutMs = 3000, operation = null } = {}) {
 function parseArgs(args) {
   const flags = {
     mock: false,
-    topK: 3,
+    topK: DEFAULT_TOP_K,
+    gateThreshold: GATE_THRESHOLD,
+    fitThreshold: FITS_THRESHOLD,
     backend: null,
     model: null,
     task: null,
@@ -1817,6 +1822,8 @@ function parseArgs(args) {
     else if (a.startsWith('--memory-store=')) flags.memoryStore = a.slice(15);
     else if (a === '--review-type') flags.reviewType = next();
     else if (a.startsWith('--review-type=')) flags.reviewType = a.slice(14);
+    else if (a === '--gate-threshold') flags.gateThreshold = Number(next());
+    else if (a === '--fit-threshold') flags.fitThreshold = Number(next());
     else if (a === '--top-k') flags.topK = Number(next());
     else if (a.startsWith('--top-k=')) flags.topK = Number(a.slice(8));
     else if (a === '--backend') flags.backend = next();
@@ -1946,7 +1953,7 @@ async function main() {
     console.log(JSON.stringify(status, null, 2));
     process.exitCode = status.ready === false ? 3 : status.active ? 0 : 2;
   }
-  else if (command === 'route-skills') console.log(JSON.stringify(await routeSkills(rest.join(' '), { mock: flags.mock, topK: flags.topK, override: flags.backend, model: flags.model }), null, 2));
+  else if (command === 'route-skills') console.log(JSON.stringify(await routeSkills(rest.join(' '), { mock: flags.mock, topK: flags.topK, gateThreshold: flags.gateThreshold, fitThreshold: flags.fitThreshold, override: flags.backend, model: flags.model }), null, 2));
   else if (command === 'prune-context') {
     const lines = (await readStdin()).split(/\r?\n/).filter(line => line.trim());
     const blocks = lines.map(line => JSON.parse(line));

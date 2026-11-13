@@ -65,6 +65,7 @@ function env(port, extra = {}) {
   writeFileSync(launches, '');
   return {
     ...process.env,
+    XDG_CONFIG_HOME: join(dir, 'no-global-preferences'),
     JEO_SYSTEMONE_DROID_BIN: stub,
     JEO_TEST_PORT: String(port),
     JEO_TEST_LAUNCHES: launches,
@@ -106,6 +107,138 @@ test('table wrapper lists models without starting a model', async () => {
   assert.match(result.stdout, /julia/);
   assert.match(result.stdout, /startlux/);
   assert.equal(readFileSync(environment.JEO_TEST_LAUNCHES, 'utf8'), '');
+});
+
+test('global profile preferences apply to discovered Droid profiles', async () => {
+  const home = join(dir, 'profile-preferences');
+  mkdirSync(join(home, 'jeo-skills'), { recursive: true });
+  writeFileSync(join(home, 'jeo-skills', 'systemone.json'), JSON.stringify({
+    model: 'julia', format: 'json',
+    profiles: { julia: { routing: { fitThreshold: 0.99, topK: 1 }, systemOne: { choiceCap: 2 } } },
+  }));
+  const environment = env(await freePort(), { XDG_CONFIG_HOME: home });
+  const julia = runTable(['Review React accessibility'], environment);
+  assert.equal(julia.status, 0, julia.stderr);
+  const juliaResult = JSON.parse(julia.stdout);
+  assert.equal(juliaResult.selection.choiceCap, 2);
+  assert.equal(juliaResult.selection.reason, 'fits');
+  assert.equal(juliaResult.topK.length, 0);
+
+  const startlux = runTable(['startlux', 'Review React accessibility'], environment);
+  assert.equal(startlux.status, 0, startlux.stderr);
+  const otherResult = JSON.parse(startlux.stdout);
+  assert.equal(otherResult.selection.choiceCap, 16);
+  assert.notEqual(otherResult.selection.reason, 'fits');
+});
+
+test('config sync discovers model names without replacing preferences', async () => {
+  const home = join(dir, 'autodetect-preferences');
+  mkdirSync(join(home, 'jeo-skills'), { recursive: true });
+  const config = join(home, 'jeo-skills', 'systemone.json');
+  writeFileSync(config, JSON.stringify({
+    format: 'json', store: '../shared-store',
+    profiles: { julia: { routing: { fitThreshold: 0.71 } } },
+  }));
+  const environment = env(await freePort(), { XDG_CONFIG_HOME: home });
+  const sync = runTable(['config', 'sync'], environment);
+  assert.equal(sync.status, 0, sync.stderr);
+  assert.match(sync.stdout, /julia/);
+  assert.match(sync.stdout, /startlux/);
+  const settings = JSON.parse(readFileSync(config, 'utf8'));
+  assert.equal(settings.profiles.julia.routing.fitThreshold, 0.71);
+  assert.equal(settings.store, '../shared-store');
+  assert.deepEqual(settings.profiles.startlux, {});
+  const rerun = runTable(['config', 'sync'], environment);
+  assert.equal(rerun.status, 0, rerun.stderr);
+  assert.equal(readFileSync(config, 'utf8'), JSON.stringify(settings, null, 2) + '\n');
+  assert.equal(readFileSync(environment.JEO_TEST_LAUNCHES, 'utf8'), '');
+});
+
+test('invalid model routing preferences reject before starting inference', async () => {
+  const home = join(dir, 'invalid-profile-preferences');
+  mkdirSync(join(home, 'jeo-skills'), { recursive: true });
+  writeFileSync(join(home, 'jeo-skills', 'systemone.json'), JSON.stringify({
+    model: 'julia', profiles: { julia: { routing: { fitThreshold: 1.5 } } },
+  }));
+  const environment = env(await freePort(), { XDG_CONFIG_HOME: home });
+  const result = runTable(['Review React accessibility'], environment);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /fitThreshold/);
+  assert.equal(readFileSync(environment.JEO_TEST_LAUNCHES, 'utf8'), '');
+});
+
+test('legacy JSON router ignores wrapper-only global preferences', async () => {
+  const home = join(dir, 'legacy-global-settings');
+  mkdirSync(join(home, 'jeo-skills'), { recursive: true });
+  writeFileSync(join(home, 'jeo-skills', 'systemone.json'), JSON.stringify({
+    model: 'startlux', format: 'table',
+    routing: { fitThreshold: 0.99 }, systemOne: { choiceCap: 2 },
+  }));
+  const result = run(['route', 'julia', 'Review React accessibility'],
+    env(await freePort(), { XDG_CONFIG_HOME: home }));
+  assert.equal(result.status, 0, result.stderr);
+  const data = JSON.parse(result.stdout);
+  assert.equal(data.backend.model, 'julia-decision');
+  assert.equal(data.selection.choiceCap, 16);
+  assert.equal(data.topK.length, 3);
+});
+
+test('global config controls routing thresholds and System One choice capacity', async () => {
+  const root = join(dir, 'global-only');
+  const directory = join(root, 'jeo-skills');
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(join(directory, 'systemone.json'), JSON.stringify({
+    model: 'julia', format: 'json',
+    routing: { gateThreshold: 0.30, fitThreshold: 0.99, topK: 1 },
+    systemOne: { choiceCap: 2, maxStateChars: 3000,
+      inferenceTimeoutMs: 120000, startupTimeoutMs: 360000 },
+  }));
+  const environment = env(await freePort(), { XDG_CONFIG_HOME: root });
+  const result = runTable(['Review React accessibility'], environment);
+  assert.equal(result.status, 0, result.stderr);
+  const routed = JSON.parse(result.stdout);
+  assert.equal(routed.backend.model, 'julia-decision');
+  assert.equal(routed.selection.gate.threshold, 0.30);
+  assert.equal(routed.selection.choiceCap, 2);
+  assert.equal(routed.selection.reason, 'fits');
+  assert.equal(routed.topK.length, 0);
+});
+
+test('explicit config overrides global fields without discarding others', async () => {
+  const root = join(dir, 'global-merge');
+  const directory = join(root, 'jeo-skills');
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(join(directory, 'systemone.json'), JSON.stringify({
+    model: 'julia', format: 'json',
+    routing: { gateThreshold: 0.30, fitThreshold: 0.99, topK: 3 },
+    systemOne: { choiceCap: 2 },
+  }));
+  const custom = join(dir, 'overrides.json');
+  writeFileSync(custom, JSON.stringify({ routing: { fitThreshold: 0.20, topK: 1 } }));
+  const environment = env(await freePort(), { XDG_CONFIG_HOME: root });
+  const result = runTable(['--config', custom, 'startlux', 'Review React accessibility'], environment);
+  assert.equal(result.status, 0, result.stderr);
+  const routed = JSON.parse(result.stdout);
+  assert.equal(routed.backend.model, 'startlux-decision');
+  assert.equal(routed.selection.gate.threshold, 0.30);
+  assert.equal(routed.selection.choiceCap, 2);
+  assert.equal(routed.topK.length, 1);
+});
+
+test('configurable gate threshold blocks low-gate skill selection', async () => {
+  const root = join(dir, 'global-gate');
+  const directory = join(root, 'jeo-skills');
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(join(directory, 'systemone.json'), JSON.stringify({
+    model: 'julia', format: 'json', routing: { gateThreshold: 0.9, fitThreshold: 0.2 },
+  }));
+  const result = runTable(['Review React accessibility'],
+    env(await freePort(), { XDG_CONFIG_HOME: root }));
+  assert.equal(result.status, 0, result.stderr);
+  const routed = JSON.parse(result.stdout);
+  assert.equal(routed.selection.gate.threshold, 0.9);
+  assert.equal(routed.selection.reason, 'gate');
+  assert.deepEqual(routed.topK, []);
 });
 
 test('wrapper preferences select the model and output format', async () => {

@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // Fork-local adapter: reuse Droid's model runtimes, not its skill catalog.
 import { spawn, execFile } from 'node:child_process';
-import { mkdir, readFile, stat } from 'node:fs/promises';
+import { mkdir, stat } from 'node:fs/promises';
 import { modelsTable, skillsTable } from './jeo-systemone-table.mjs';
-import { join, resolve, basename, dirname } from 'node:path';
+import { forProfile, preferences, syncGlobalProfiles } from './jeo-systemone-settings.mjs';
+import { join, resolve, basename } from 'node:path';
 import { promisify } from 'node:util';
 import { setTimeout as sleep } from 'node:timers/promises';
 
@@ -13,8 +14,6 @@ const droid = process.env.JEO_SYSTEMONE_DROID_BIN || 'jev-droid';
 const catalog = join(repo, '.agent-skills', 'skills.json');
 const harness = join(repo, 'jev', 'jev-harness.mjs');
 const workspace = join(repo, '.jeo-local');
-const STARTUP_MS = 360000;
-const LIMITS = { choiceCap: 16, stateChars: 3000, inferenceMs: 120000 };
 
 function loopback(endpoint) {
   let url;
@@ -69,7 +68,7 @@ async function runningModel(profile) {
   return requireSelectedModel(profile, servedId(health, models));
 }
 
-function isolatedHarnessEnv(endpoint, model, catalogPath) {
+function isolatedHarnessEnv(endpoint, model, catalogPath, settings) {
   const env = { ...process.env };
   for (const key of Object.keys(env)) if (key.startsWith('JEV_')) delete env[key];
   return {
@@ -79,9 +78,9 @@ function isolatedHarnessEnv(endpoint, model, catalogPath) {
     JEV_SYSTEMONE_DRIVER: 'typesafe',
     JEV_SYSTEMONE_ENDPOINT: endpoint + '/v1/systemone',
     JEV_SYSTEMONE_MODEL: model,
-    JEV_SYSTEMONE_CHOICE_CAP: String(LIMITS.choiceCap),
-    JEV_SYSTEMONE_MAX_STATE_CHARS: String(LIMITS.stateChars),
-    JEV_SYSTEMONE_TIMEOUT_MS: String(LIMITS.inferenceMs),
+    JEV_SYSTEMONE_CHOICE_CAP: String(settings.choiceCap),
+    JEV_SYSTEMONE_MAX_STATE_CHARS: String(settings.maxStateChars),
+    JEV_SYSTEMONE_TIMEOUT_MS: String(settings.inferenceTimeoutMs),
   };
 }
 
@@ -107,16 +106,16 @@ function startOwned(profile) {
   return { child, diagnostic: () => detail.trim() };
 }
 
-function startupTimeout() {
-  const value = Number(process.env.JEO_SYSTEMONE_STARTUP_TIMEOUT_MS || STARTUP_MS);
+function startupTimeout(fallback) {
+  const value = Number(process.env.JEO_SYSTEMONE_STARTUP_TIMEOUT_MS || fallback);
   if (!Number.isInteger(value) || value < 1000 || value > 600000) {
     throw new Error('Invalid System One startup timeout');
   }
   return value;
 }
 
-async function waitForModel(profile, owned) {
-  const deadline = Date.now() + startupTimeout();
+async function waitForModel(profile, owned, timeoutMs) {
+  const deadline = Date.now() + startupTimeout(timeoutMs);
   while (Date.now() < deadline) {
     if (owned.child.exitCode !== null || owned.child.signalCode !== null) {
       throw new Error('Droid model server exited before becoming ready: ' +
@@ -145,7 +144,7 @@ async function catalogForStore(store) {
   throw new Error('Skills store must contain a readable skills.json catalog: ' + target);
 }
 
-async function route(name, task, { store, table } = {}) {
+async function route(name, task, { store, table, routing, systemOne } = {}) {
   if (!task.trim()) throw new Error('route requires a task description');
   const catalogPath = await catalogForStore(store);
   const selected = (await profiles()).find(profile => profile.name === name);
@@ -157,13 +156,15 @@ async function route(name, task, { store, table } = {}) {
     let model = await runningModel(selected);
     if (!model) {
       child = startOwned(selected);
-      model = await waitForModel(selected, child);
+      model = await waitForModel(selected, child, systemOne.startupTimeoutMs);
     }
     await mkdir(workspace, { recursive: true });
     const { stdout } = await execFileAsync(process.execPath,
-      [harness, 'route-skills', task], {
+      [harness, 'route-skills', '--top-k', String(routing.topK),
+        '--gate-threshold', String(routing.gateThreshold),
+        '--fit-threshold', String(routing.fitThreshold), task], {
         cwd: repo,
-        env: isolatedHarnessEnv(endpoint, model, catalogPath),
+        env: isolatedHarnessEnv(endpoint, model, catalogPath, systemOne),
         timeout: 600000,
         maxBuffer: 5 * 1024 * 1024,
       });
@@ -189,28 +190,6 @@ function parseOptions(args) {
   return options;
 }
 
-async function loadPreferences(file) {
-  if (!file) return {};
-  let preferences;
-  try { preferences = JSON.parse(await readFile(file, 'utf8')); }
-  catch (error) { throw new Error('Cannot read System One config ' + file + ': ' + error.message); }
-  if (Object.prototype.toString.call(preferences) !== '[object Object]') {
-    throw new Error('Invalid System One config: expected an object');
-  }
-  const checks = {
-    model: value => value === null || (typeof value === 'string' && Boolean(value.trim())),
-    store: value => value === null || (typeof value === 'string' && Boolean(value.trim())),
-    format: value => ['table', 'json'].includes(value),
-  };
-  for (const [key, check] of Object.entries(checks)) {
-    if (preferences[key] !== undefined && !check(preferences[key])) {
-      throw new Error('Invalid System One config property: ' + key);
-    }
-  }
-  return { ...preferences,
-    store: preferences.store ? resolve(dirname(file), preferences.store) : null };
-}
-
 function routingRequest(args, defaultModel) {
   const parts = args[0] === 'route' ? args.slice(1) : args;
   const model = parts.length > 1 ? parts[0] : defaultModel;
@@ -226,13 +205,28 @@ async function printModels(table) {
   process.stdout.write(table ? modelsTable(found) : JSON.stringify({ profiles: found }) + '\n');
 }
 
+async function syncModels() {
+  const discovered = (await profiles()).map(profile => profile.name);
+  await syncGlobalProfiles(discovered);
+  process.stdout.write('Discovered System One profiles: ' + discovered.join(', ') + '\n');
+}
+
+function tableOutput(options, settings) {
+  return options.table || (settings.format ?? (options.configPath ? 'table' : 'json')) === 'table';
+}
+
 async function main(input) {
   const options = parseOptions(input);
-  const preferences = await loadPreferences(options.configPath);
-  const table = options.table || preferences.format === 'table';
+  const settings = options.configPath ? await preferences(options.configPath) : {};
+  if (options.args.join(' ') === 'config sync') return syncModels();
+  const table = tableOutput(options, settings);
   if (options.args.length === 1 && options.args[0] === 'models') return printModels(table);
-  const { model, task } = routingRequest(options.args, preferences.model);
-  return route(model, task, { store: options.store ?? preferences.store, table });
+  const { model, task } = routingRequest(options.args, settings.model);
+  const selected = forProfile(settings, model);
+  return route(model, task, {
+    store: options.store ?? selected.store, table,
+    routing: selected.routing, systemOne: selected.systemOne,
+  });
 }
 
 main(process.argv.slice(2)).catch(error => {
