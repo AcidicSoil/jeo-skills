@@ -1,7 +1,7 @@
 ---
 name: agents
 description: Always-loaded project anchor. Read this first. Contains project identity, non-negotiables, commands, and pointer to ROUTER.md for full context.
-last_updated: 2026-11-12
+last_updated: 2026-11-13
 ---
 
 # jeo-skills
@@ -25,7 +25,8 @@ A curated, cross-platform catalog of categorized AI agent skills (current count:
 - Isolated browse/install: `scripts/jeo-local.sh categories` / `scripts/jeo-local.sh install <names> --dry-run`
 - Isolation regression: `scripts/test-jeo-local.sh`
 - Shared System One models: `scripts/jeo-local.sh systemone models`
-- Shared-model routing: `scripts/jeo-local.sh systemone route <model> "<task>"`
+- Shared-model routing (JSON): `scripts/jeo-local.sh systemone route <model> "<task>"`
+- Human-readable model/skill tables: `scripts/jeo-systemone.sh models` / `scripts/jeo-systemone.sh <model> "<task>"` (`--store <path>` uses a separate catalog for one request).
 
 ## Code Graph
 The repo is indexed into `.mex/graph.db`. Use it to avoid re-reading code you already have — it is one tool alongside Grep/Glob, not a replacement for them.

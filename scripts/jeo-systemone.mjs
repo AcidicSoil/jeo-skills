@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Fork-local adapter: reuse Droid's model runtimes, not its skill catalog.
 import { spawn, execFile } from 'node:child_process';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, stat } from 'node:fs/promises';
+import { modelsTable, skillsTable } from './jeo-systemone-table.mjs';
 import { join, resolve, basename } from 'node:path';
 import { promisify } from 'node:util';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -68,13 +69,13 @@ async function runningModel(profile) {
   return requireSelectedModel(profile, servedId(health, models));
 }
 
-function isolatedHarnessEnv(endpoint, model) {
+function isolatedHarnessEnv(endpoint, model, catalogPath) {
   const env = { ...process.env };
   for (const key of Object.keys(env)) if (key.startsWith('JEV_')) delete env[key];
   return {
     ...env, HOME: join(workspace, 'home'), XDG_STATE_HOME: join(workspace, 'state'),
     JEV_MODE: 'systemone',
-    JEV_CATALOG_PATH: catalog,
+    JEV_CATALOG_PATH: catalogPath,
     JEV_SYSTEMONE_DRIVER: 'typesafe',
     JEV_SYSTEMONE_ENDPOINT: endpoint + '/v1/systemone',
     JEV_SYSTEMONE_MODEL: model,
@@ -128,8 +129,25 @@ async function waitForModel(profile, owned) {
   throw new Error('Droid model startup exceeded its deadline');
 }
 
-async function route(name, task) {
+async function catalogForStore(store) {
+  if (!store) return catalog;
+  const target = resolve(store);
+  let candidates = [target];
+  try {
+    if ((await stat(target)).isDirectory()) {
+      candidates = [join(target, 'skills.json'), join(target, '.agent-skills', 'skills.json')];
+    }
+  } catch { /* The chosen store does not exist. */ }
+  for (const file of candidates) {
+    try { if ((await stat(file)).isFile()) return file; }
+    catch { /* Try the next supported catalog location. */ }
+  }
+  throw new Error('Skills store must contain a readable skills.json catalog: ' + target);
+}
+
+async function route(name, task, { store, table } = {}) {
   if (!task.trim()) throw new Error('route requires a task description');
+  const catalogPath = await catalogForStore(store);
   const selected = (await profiles()).find(profile => profile.name === name);
   if (!selected) throw new Error('Unknown System One profile: ' + name);
   const endpoint = loopback(selected.endpoint);
@@ -145,26 +163,41 @@ async function route(name, task) {
     const { stdout } = await execFileAsync(process.execPath,
       [harness, 'route-skills', task], {
         cwd: repo,
-        env: isolatedHarnessEnv(endpoint, model),
+        env: isolatedHarnessEnv(endpoint, model, catalogPath),
         timeout: 600000,
         maxBuffer: 5 * 1024 * 1024,
       });
-    process.stdout.write(stdout);
+    process.stdout.write(table ? skillsTable(JSON.parse(stdout)) : stdout);
   } finally {
     await stopOwned(child?.child);
   }
 }
 
-async function main(args) {
+function parseOptions(args) {
+  let table = false;
+  let store;
+  while (args[0] === '--table' || args[0] === '--store') {
+    if (args.shift() === '--table') table = true;
+    else {
+      store = args.shift();
+      if (!store) throw new Error('--store requires a skills catalog path');
+    }
+  }
+  return { args, store, table };
+}
+
+async function main(input) {
+  const { args, store, table } = parseOptions(input);
   if (args.length === 1 && args[0] === 'models') {
-    process.stdout.write(JSON.stringify({ profiles: await profiles() }) + '\n');
+    const found = await profiles();
+    process.stdout.write(table ? modelsTable(found) : JSON.stringify({ profiles: found }) + '\n');
     return;
   }
-  if (args[0] === 'route' && args.length >= 3) {
-    await route(args[1], args.slice(2).join(' '));
-    return;
+  if (args[0] === 'route') args.shift();
+  if (args.length < 2) {
+    throw new Error('Usage: jeo-systemone.sh [--store PATH] models | MODEL "task"');
   }
-  throw new Error('Usage: jeo-local.sh systemone models | systemone route MODEL "task"');
+  await route(args[0], args.slice(1).join(' '), { store, table });
 }
 
 main(process.argv.slice(2)).catch(error => {

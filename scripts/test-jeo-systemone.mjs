@@ -2,13 +2,14 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { createServer } from 'node:net';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 
 const repo = resolve(import.meta.dirname, '..');
 const wrapper = join(repo, 'scripts', 'jeo-systemone.mjs');
+const tableWrapper = join(repo, 'scripts', 'jeo-systemone.sh');
 const dir = mkdtempSync(join(tmpdir(), 'jeo-systemone-test-'));
 
 async function freePort() {
@@ -80,6 +81,12 @@ function run(args, environment) {
   });
 }
 
+function runTable(args, environment) {
+  return spawnSync('bash', [tableWrapper, ...args], {
+    cwd: dir, env: environment, encoding: 'utf8', timeout: 60000,
+  });
+}
+
 async function waitUntilReady(port) {
   for (let n = 0; n < 100; n++) {
     try {
@@ -90,6 +97,41 @@ async function waitUntilReady(port) {
   }
   throw new Error('Fake model did not start');
 }
+
+test('table wrapper lists models without starting a model', async () => {
+  const environment = env(await freePort());
+  const result = runTable(['models'], environment);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /Model\s+Runtime\s+Configured/);
+  assert.match(result.stdout, /julia/);
+  assert.match(result.stdout, /startlux/);
+  assert.equal(readFileSync(environment.JEO_TEST_LAUNCHES, 'utf8'), '');
+});
+
+test('table wrapper routes against a selected additional store', async () => {
+  const environment = env(await freePort());
+  const store = join(dir, 'other-store');
+  const source = join(store, '.agent-skills');
+  const skill = join(source, 'external-react-review');
+  mkdirSync(skill, { recursive: true });
+  writeFileSync(join(skill, 'SKILL.md'), '# External React review\nReview React interfaces');
+  writeFileSync(join(source, 'skills.json'), JSON.stringify({
+    skills: [{ name: 'external-react-review', path: 'external-react-review/SKILL.md',
+      description: 'Review React interfaces and accessibility', category: 'frontend' }],
+    categories: { frontend: ['external-react-review'] }, model_policies: {},
+  }));
+  const result = runTable(['--store', store, 'julia', 'Review React accessibility'], environment);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /Model:\s+julia-decision/);
+  assert.match(result.stdout, /Catalog:\s+1 skill/);
+  assert.match(result.stdout, /Skill\s+Category\s+Fit\s+Description/);
+  assert.match(result.stdout, /external-react-review/);
+  assert.doesNotMatch(result.stdout, /fullCatalogSkills/);
+  assert.equal(readFileSync(environment.JEO_TEST_LAUNCHES, 'utf8').trim(), 'julia');
+  const rejected = runTable(['--store', join(dir, 'nonexistent'), 'julia', 'Review React'], environment);
+  assert.notEqual(rejected.status, 0);
+  assert.match(rejected.stderr, /skills.json/);
+});
 
 test('models lists the shared Droid profiles without starting models', async () => {
   const environment = env(await freePort());

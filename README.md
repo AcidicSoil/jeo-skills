@@ -63,7 +63,22 @@ It intentionally rejects `--global`, host-specific targets, `--setup`, `--with-h
 ./scripts/jeo-local.sh systemone route clef "Choose relevant skills"
 ```
 
-The same command accepts the configured `default` (Laya) and `kev` profiles. Model selection comes from `jev-droid models` and the actual served model identity, never a second registry. Requires `jev-droid` on PATH; override its executable with `JEO_SYSTEMONE_DROID_BIN` for testing. Server startup may take a while for memory-staged GGUFs such as Clef; adjust `JEO_SYSTEMONE_STARTUP_TIMEOUT_MS` if needed. All model requests stay on HTTP loopback, and the harness uses a checkout-local environment under `.jeo-local/`. Outputs are advisory; no calibration attestation, global skill installation, hook changes, or LM Studio are implied. Run `scripts/test-jeo-local.sh` to test isolation and model reuse.
+For terminal use, the thin wrapper displays a table of models and matching skills instead of the full JSON response:
+
+```bash
+./scripts/jeo-systemone.sh models
+./scripts/jeo-systemone.sh julia "Review TypeScript architecture"
+./scripts/jeo-systemone.sh --store /path/to/another-store kev "Find testing skills"
+```
+
+`--store` accepts a Jeo-compatible `skills.json` file, a directory containing
+`skills.json`, or a store containing `.agent-skills/skills.json`. It changes
+the catalog for **that command only**, without copying or installing skills.
+A plain directory of `SKILL.md` files without a compatible catalog is not
+yet supported. The existing `jeo-local.sh systemone` commands continue to
+emit JSON for machine consumers.
+
+Both entry points accept the configured `default` (Laya) and `kev` profiles. Model selection comes from `jev-droid models` and the actual served model identity, never a second registry. Requires `jev-droid` on PATH; override its executable with `JEO_SYSTEMONE_DROID_BIN` for testing. Server startup may take a while for memory-staged GGUFs such as Clef; adjust `JEO_SYSTEMONE_STARTUP_TIMEOUT_MS` if needed. All model requests stay on HTTP loopback, and the harness uses a checkout-local environment under `.jeo-local/`. Outputs are advisory; no calibration attestation, global skill installation, hook changes, or LM Studio are implied. Run `scripts/test-jeo-local.sh` to test isolation and model reuse.
 
 The options below describe the general upstream setup, **not** this isolated workflow.
 
