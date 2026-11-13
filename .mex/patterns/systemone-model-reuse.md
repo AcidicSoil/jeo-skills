@@ -24,9 +24,9 @@ last_updated: 2026-11-13
    `gateThreshold` and `fitThreshold` drive harness filtering; `topK`,
    `choiceCap`, `maxStateChars`, and timeouts are bounded by their actual
    code contracts. `--store <path>` overrides the catalog per request.
-   For the shared installed root, run
-   `python3 -B scripts/index-installed-skills.py ~/.agents/skills` before
-   `--store ~/.agents/skills`. The original `jeo-local.sh systemone route`
+   For the shared installed root, run `scripts/sync-skill-store.sh`
+   after installed skills change, or pass another store path to that script.
+   Then use `--store ~/.agents/skills`. The original `jeo-local.sh systemone route`
    continues to emit JSON without reading wrapper preferences.
 4. If the wrapper started the model, it stops it. An already-running model stays running.
    No `~/.agents/skills` writes or global Jev profiles are permitted.
