@@ -120,7 +120,7 @@ paths in JSON resolve from their own config file's directory.
 ./scripts/jeo-systemone.sh julia "Review TypeScript architecture"
 ./scripts/jeo-systemone.sh --store "$HOME/.agents/skills" kev "Find testing skills"
 
-# Sync the catalog from installed SKILL.md files (Python and PyYAML required):
+# Sync the catalog from installed SKILL.md files (Node.js only):
 ./scripts/sync-skill-store.sh                      # ~/.agents/skills
 ./scripts/sync-skill-store.sh /path/to/skills-store  # another installed store
 ```
@@ -128,8 +128,9 @@ paths in JSON resolve from their own config file's directory.
 The installed shared skills root needs a `skills.json` because the router does
 not invent metadata from directory names. Run `scripts/sync-skill-store.sh`
 on demand after adding, editing, or removing skills. It delegates to the
-catalog indexer, reads installed `SKILL.md` frontmatter, excludes unusable
-entries, and updates `skills.json` only when needed. No skills are copied,
+Node.js catalog indexer, reads installed `SKILL.md` frontmatter, excludes unusable
+entries, and updates `skills.json` only when needed. This sync path needs no
+Python, PyYAML, or additional Node package. No skills are copied,
 installed, deleted, or modified. A directory without an indexed catalog cannot
 be routed until indexed. The existing `jeo-local.sh systemone` commands
 continue to emit JSON and do not read wrapper preferences.

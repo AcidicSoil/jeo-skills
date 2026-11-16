@@ -14,7 +14,7 @@ edges:
     condition: when setting up the dev environment or running the project for the first time
   - target: patterns/INDEX.md
     condition: when starting a task — check the pattern index for a matching pattern file
-last_updated: 2026-11-13
+last_updated: 2026-11-16
 ---
 
 # Session Bootstrap
@@ -28,7 +28,7 @@ Then read this file fully before doing anything else in this session.
 **Working in the isolated AcidicSoil fork (verified 2026-11-12):**
 - `scripts/jeo-local.sh` pins the fork catalog, anchors execution in its checkout, and installs only to the checkout's ignored `.jeo-local/.agents/skills`; `jeo-skill` was successfully installed there.
 - `main` tracks `origin/main`. Global skill files, host hooks, and shared-root refresh are intentionally out of scope.
-- Fork-local `scripts/jeo-local.sh systemone models|route` retains JSON output and ignores wrapper preferences. The `jeo-systemone.sh` frontend reads XDG global `jeo-skills/systemone.json`, applies the local `scripts/jeo-systemone.config.json` overlay, and supports model-specific routing thresholds and resource budgets; `config sync` adds names discovered from `jev-droid models` without writing Droid. `scripts/sync-skill-store.sh [STORE_PATH]` invokes the installed-skills indexer on demand, updating only the destination `skills.json` from present `SKILL.md` frontmatter without changing installed skills. Both routing entrypoints preserve isolated backend ownership and cleanup.
+- Fork-local `scripts/jeo-local.sh systemone models|route` retains JSON output and ignores wrapper preferences. The `jeo-systemone.sh` frontend reads XDG global `jeo-skills/systemone.json`, applies the local `scripts/jeo-systemone.config.json` overlay, and supports model-specific routing thresholds and resource budgets; `config sync` adds names discovered from `jev-droid models` without writing Droid. `scripts/sync-skill-store.sh [STORE_PATH]` invokes the dependency-free Node.js `scripts/index-installed-skills.mjs` indexer on demand, updating only the destination `skills.json` from present `SKILL.md` frontmatter without changing installed skills. Both routing entrypoints preserve isolated backend ownership and cleanup.
 - Repowise is installed but this repository has no `.repowise/` index; do not initialize without approval.
 
 **Upstream shared-root reference (not configured by the isolated workflow):**

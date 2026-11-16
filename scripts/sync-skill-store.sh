@@ -9,4 +9,4 @@ if (( $# > 1 )); then
 fi
 
 store="${1:-$HOME/.agents/skills}"
-exec python3 "$repo/scripts/index-installed-skills.py" "$store"
+exec node "$repo/scripts/index-installed-skills.mjs" "$store"

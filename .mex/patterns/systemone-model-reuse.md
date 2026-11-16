@@ -1,7 +1,7 @@
 ---
 name: systemone-model-reuse
 description: Reuse installed System One decision models in the isolated Jeo catalog without configuring global skills.
-last_updated: 2026-11-13
+last_updated: 2026-11-16
 ---
 
 # Fork-local System One model reuse
@@ -26,6 +26,7 @@ last_updated: 2026-11-13
    code contracts. `--store <path>` overrides the catalog per request.
    For the shared installed root, run `scripts/sync-skill-store.sh`
    after installed skills change, or pass another store path to that script.
+   Sync uses only Node.js and a bounded SKILL.md metadata parser; no PyYAML.
    Then use `--store ~/.agents/skills`. The original `jeo-local.sh systemone route`
    continues to emit JSON without reading wrapper preferences.
 4. If the wrapper started the model, it stops it. An already-running model stays running.
